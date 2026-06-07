@@ -28,7 +28,9 @@ export async function requestOpenRouter(messages: ChatMessage[], responseFormat?
 				method: 'POST',
 				headers: {
 					Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
-					'Content-Type': 'application/json'
+					'Content-Type': 'application/json',
+					'HTTP-Referer': env.ORIGIN ?? 'https://www.trygraphia.app',
+					'X-Title': 'Graphia'
 				},
 				body: JSON.stringify({
 					model: env.OPENROUTER_MODEL,
@@ -48,12 +50,12 @@ export async function requestOpenRouter(messages: ChatMessage[], responseFormat?
 				throw new Error(message);
 			}
 
-			const content = body?.choices?.[0]?.message?.content;
-			if (typeof content !== 'string' || content.trim().length === 0) {
-				throw new Error('OpenRouter response did not include message content');
+			const content = extractMessageContent(body);
+			if (!content) {
+				throw new Error(`OpenRouter response did not include message content: ${summarizeBody(body)}`);
 			}
 
-			return content.trim();
+			return content;
 		} catch (error) {
 			lastError = error;
 			if (attempt < RETRIES) await sleep(750 * (attempt + 1));
@@ -67,4 +69,57 @@ export async function requestOpenRouter(messages: ChatMessage[], responseFormat?
 
 function sleep(ms: number) {
 	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function extractMessageContent(body: unknown) {
+	if (!body || typeof body !== 'object') return null;
+
+	const candidate = body as {
+		choices?: {
+			message?: {
+				content?: unknown;
+				refusal?: unknown;
+				reasoning?: unknown;
+			};
+			text?: unknown;
+			finish_reason?: unknown;
+		}[];
+		output_text?: unknown;
+	};
+	const choice = candidate.choices?.[0];
+	const content = choice?.message?.content;
+
+	if (typeof content === 'string' && content.trim()) return content.trim();
+	if (Array.isArray(content)) {
+		const text = content
+			.map((part) => {
+				if (typeof part === 'string') return part;
+				if (part && typeof part === 'object' && 'text' in part) {
+					const text = (part as { text?: unknown }).text;
+					return typeof text === 'string' ? text : '';
+				}
+				return '';
+			})
+			.join('')
+			.trim();
+		if (text) return text;
+	}
+
+	if (typeof choice?.text === 'string' && choice.text.trim()) return choice.text.trim();
+	if (typeof candidate.output_text === 'string' && candidate.output_text.trim()) {
+		return candidate.output_text.trim();
+	}
+
+	return null;
+}
+
+function summarizeBody(body: unknown) {
+	if (!body) return 'empty response body';
+
+	try {
+		const json = JSON.stringify(body);
+		return json.length > 500 ? `${json.slice(0, 500)}...` : json;
+	} catch {
+		return 'unserializable response body';
+	}
 }
