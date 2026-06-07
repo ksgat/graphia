@@ -14,6 +14,9 @@
 			<a href="/" class="text-lg font-semibold tracking-tight">Graphia</a>
 
 			<div class="flex items-center gap-3">
+				<a class="hidden text-sm font-medium text-slate-600 hover:text-slate-950 sm:inline" href="/app">
+					App
+				</a>
 				{#if data.session?.user}
 					<span class="hidden text-sm text-slate-600 sm:inline">
 						{data.session.user.name ?? data.session.user.email ?? 'Signed in'}

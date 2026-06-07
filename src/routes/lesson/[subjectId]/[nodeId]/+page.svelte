@@ -1,5 +1,5 @@
 <script lang="ts">
-	import LessonPage from '../[subjectId]/LessonPage.svelte';
+	import LessonPage from '../LessonPage.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();

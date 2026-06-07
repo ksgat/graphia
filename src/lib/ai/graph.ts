@@ -1,10 +1,7 @@
-import { env } from '$env/dynamic/private';
 import type { GraphData } from '$lib/types';
 import { z } from 'zod';
+import { requestOpenRouter } from './openrouter';
 import { graphPrompt } from './prompts';
-
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const DEFAULT_MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
 
 const graphDataSchema = z.object({
 	nodes: z
@@ -33,7 +30,41 @@ function parseModelJson(content: string): unknown {
 		.replace(/\s*```$/i, '')
 		.trim();
 
-	return JSON.parse(withoutFence);
+	try {
+		return JSON.parse(withoutFence);
+	} catch {
+		const start = withoutFence.indexOf('{');
+		const end = withoutFence.lastIndexOf('}');
+		if (start === -1 || end === -1 || end <= start) throw new Error('No JSON object found');
+		return JSON.parse(withoutFence.slice(start, end + 1));
+	}
+}
+
+function normalizeGraph(graph: GraphData): GraphData {
+	const dedupedNodes = graph.nodes
+		.filter((node, index, nodes) => nodes.findIndex((candidate) => candidate.id === node.id) === index)
+		.slice(0, 18);
+	const ids = new Set(dedupedNodes.map((node) => node.id));
+	const edges = graph.edges.filter((edge) => ids.has(edge.from) && ids.has(edge.to) && edge.from !== edge.to);
+
+	const incoming = new Set(edges.map((edge) => edge.to));
+	for (const node of dedupedNodes) {
+		if (node.level > 0 && !incoming.has(node.id)) {
+			const prerequisite =
+				dedupedNodes.find((candidate) => candidate.level < node.level) ?? dedupedNodes[0];
+			if (prerequisite && prerequisite.id !== node.id) {
+				edges.push({ from: prerequisite.id, to: node.id });
+				incoming.add(node.id);
+			}
+		}
+	}
+
+	const normalized = { nodes: dedupedNodes, edges };
+	if (normalized.nodes.length < 8) {
+		throw new Error('Generated graph did not include enough valid nodes');
+	}
+
+	return normalized;
 }
 
 function assertValidGraph(graph: GraphData) {
@@ -82,36 +113,13 @@ function assertValidGraph(graph: GraphData) {
 }
 
 export async function generateGraph(subject: string): Promise<GraphData> {
-	if (!env.OPENROUTER_API_KEY) {
-		throw new Error('OPENROUTER_API_KEY is not set');
-	}
-
-	const response = await fetch(OPENROUTER_URL, {
-		method: 'POST',
-		headers: {
-			Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({
-			model: env.OPENROUTER_MODEL || DEFAULT_MODEL,
-			messages: [{ role: 'user', content: graphPrompt(subject) }],
-			response_format: { type: 'json_object' }
-		})
-	});
-
-	if (!response.ok) {
-		throw new Error(`OpenRouter graph request failed: ${response.status}`);
-	}
-
-	const data = await response.json();
-	const content = data?.choices?.[0]?.message?.content;
-
-	if (typeof content !== 'string') {
-		throw new Error('OpenRouter graph response did not include message content');
-	}
-
+	const content = await requestOpenRouter(
+		[{ role: 'user', content: graphPrompt(subject) }],
+		{ type: 'json_object' }
+	);
 	const graph = graphDataSchema.parse(parseModelJson(content));
-	assertValidGraph(graph);
+	const normalized = normalizeGraph(graph);
+	assertValidGraph(normalized);
 
-	return graph;
+	return normalized;
 }
