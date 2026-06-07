@@ -12,6 +12,7 @@ export const { handle, signIn, signOut } = SvelteKitAuth({
 		verificationTokensTable: verificationTokens
 	}),
 	providers: [GitHub],
+	trustHost: true,
 	session: { strategy: 'database' },
 	callbacks: {
 		session({ session, user }) {
