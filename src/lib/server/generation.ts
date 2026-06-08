@@ -5,20 +5,21 @@ import { graphs, lessons, progress, subjects } from '$lib/server/db/schema';
 
 export async function generateSubjectContent(subjectId: string, subject: string) {
 	try {
+		console.info('generation.graph.start', { subjectId });
+
 		await db
 			.update(subjects)
 			.set({ status: 'generating', error: null, updatedAt: new Date() })
 			.where(eq(subjects.id, subjectId));
 
 		const graphData = await generateGraph(subject);
-		const existingLessons = await db
-			.select({ id: lessons.id })
-			.from(lessons)
-			.where(eq(lessons.subjectId, subjectId));
+		console.info('generation.graph.done', {
+			subjectId,
+			nodeCount: graphData.nodes.length,
+			edgeCount: graphData.edges.length
+		});
 
-		for (const lesson of existingLessons) {
-			await db.delete(progress).where(eq(progress.lessonId, lesson.id));
-		}
+		await db.delete(progress).where(eq(progress.subjectId, subjectId));
 		await db.delete(lessons).where(eq(lessons.subjectId, subjectId));
 
 		await db
@@ -44,6 +45,7 @@ export async function generateSubjectContent(subjectId: string, subject: string)
 		return { status: 'done' as const };
 	} catch (error) {
 		const message = error instanceof Error ? error.message : 'Generation failed';
+		console.error('generation.graph.failed', { subjectId, message });
 
 		await db
 			.update(subjects)

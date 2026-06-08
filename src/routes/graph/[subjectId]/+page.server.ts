@@ -1,5 +1,5 @@
 import { error } from '@sveltejs/kit';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { graphs, lessons, progress, subjects } from '$lib/server/db/schema';
 import type { PageServerLoad } from './$types';
@@ -34,25 +34,31 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		.where(eq(lessons.subjectId, subject.id))
 		.orderBy(asc(lessons.createdAt));
 
-	let progressRows: { lessonId: string; completed: boolean; score: number | null }[] = [];
+	let progressRows: {
+		nodeId: string;
+		completed: boolean;
+		score: number | null;
+		lastAccessedAt: string;
+		completedAt: string | null;
+	}[] = [];
 
-	if (userId && lessonRows.length > 0) {
-		progressRows = await db
+	if (userId) {
+		const rows = await db
 			.select({
-				lessonId: progress.lessonId,
+				nodeId: progress.nodeId,
 				completed: progress.completed,
-				score: progress.score
+				score: progress.score,
+				lastAccessedAt: progress.lastAccessedAt,
+				completedAt: progress.completedAt
 			})
 			.from(progress)
-			.where(
-				and(
-					eq(progress.userId, userId),
-					inArray(
-						progress.lessonId,
-						lessonRows.map((lesson) => lesson.id)
-					)
-				)
-			);
+			.where(and(eq(progress.userId, userId), eq(progress.subjectId, subject.id)));
+
+		progressRows = rows.map((row) => ({
+			...row,
+			lastAccessedAt: row.lastAccessedAt.toISOString(),
+			completedAt: row.completedAt?.toISOString() ?? null
+		}));
 	}
 
 	return {

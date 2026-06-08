@@ -53,7 +53,10 @@
 				return `@@MATH_${index - 1}@@`;
 			});
 
-		let html = marked.parse(withMath, { async: false }) as string;
+		const escapedMarkdown = withMath.replace(/[<>]/g, (character) =>
+			character === '<' ? '&lt;' : '&gt;'
+		);
+		let html = marked.parse(escapedMarkdown, { async: false }) as string;
 		placeholders.forEach((value, index) => {
 			html = html.replace(`@@MATH_${index}@@`, value);
 		});
@@ -94,7 +97,11 @@
 			const response = await fetch('/api/progress', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ lessonId: data.lesson.id, score: finalScore })
+				body: JSON.stringify({
+					subjectId: data.subject.id,
+					nodeId: data.lesson.nodeId,
+					score: finalScore
+				})
 			});
 
 			const payload = await response.json();

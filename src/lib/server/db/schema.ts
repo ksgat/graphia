@@ -115,12 +115,14 @@ export const progress = pgTable(
 		userId: text('user_id')
 			.notNull()
 			.references(() => users.id, { onDelete: 'cascade' }),
-		lessonId: uuid('lesson_id')
+		subjectId: uuid('subject_id')
 			.notNull()
-			.references(() => lessons.id, { onDelete: 'cascade' }),
+			.references(() => subjects.id, { onDelete: 'cascade' }),
+		nodeId: text('node_id').notNull(),
 		completed: boolean('completed').notNull().default(false),
 		score: integer('score'),
+		lastAccessedAt: timestamp('last_accessed_at', { mode: 'date' }).defaultNow().notNull(),
 		completedAt: timestamp('completed_at', { mode: 'date' })
 	},
-	(table) => [uniqueIndex('progress_user_lesson_unique').on(table.userId, table.lessonId)]
+	(table) => [uniqueIndex('progress_user_subject_node_unique').on(table.userId, table.subjectId, table.nodeId)]
 );

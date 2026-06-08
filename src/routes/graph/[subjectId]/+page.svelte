@@ -14,12 +14,9 @@
 	let network: any = null;
 	let renderedKey = '';
 
-	const completedLessonIds = $derived(
-		new Set(data.progress.filter((item) => item.completed).map((item) => item.lessonId))
-	);
 	const lessonsByNode = $derived(new Map(data.lessons.map((lesson) => [lesson.nodeId, lesson])));
 	const completedNodeIds = $derived(
-		new Set(data.lessons.filter((lesson) => completedLessonIds.has(lesson.id)).map((lesson) => lesson.nodeId))
+		new Set(data.progress.filter((item) => item.completed).map((item) => item.nodeId))
 	);
 	const selectedNode = $derived(data.graph?.nodes.find((node) => node.id === selectedNodeId) ?? null);
 	const selectedLocked = $derived(selectedNode ? isLocked(selectedNode.id) : false);
@@ -117,7 +114,7 @@
 			return {
 				id: node.id,
 				label: node.label,
-				title: node.summary,
+				title: escapeHtml(node.summary),
 				shape: 'box',
 				margin: { top: 10, right: 12, bottom: 10, left: 12 },
 				borderWidth: completed ? 4 : 2,
@@ -190,6 +187,23 @@
 		} finally {
 			isRegenerating = false;
 		}
+	}
+
+	function escapeHtml(value: string) {
+		return value.replace(/[&<>"']/g, (character) => {
+			switch (character) {
+				case '&':
+					return '&amp;';
+				case '<':
+					return '&lt;';
+				case '>':
+					return '&gt;';
+				case '"':
+					return '&quot;';
+				default:
+					return '&#39;';
+			}
+		});
 	}
 </script>
 

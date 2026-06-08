@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { db } from '$lib/server/db';
 import { generateSubjectContent } from '$lib/server/generation';
 import { subjects } from '$lib/server/db/schema';
+import { isSameOrigin } from '$lib/server/security';
 import type { RequestHandler } from './$types';
 
 const regenerateRequestSchema = z.object({
@@ -16,6 +17,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	if (!userId) {
 		return json({ error: 'unauthorized' }, { status: 401 });
+	}
+
+	if (!isSameOrigin(request)) {
+		return json({ error: 'forbidden' }, { status: 403 });
 	}
 
 	const parsed = regenerateRequestSchema.safeParse(await request.json().catch(() => null));

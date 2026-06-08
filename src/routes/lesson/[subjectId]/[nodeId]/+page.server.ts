@@ -1,8 +1,9 @@
-import { error } from '@sveltejs/kit';
-import { and, eq, inArray } from 'drizzle-orm';
+import { error, redirect } from '@sveltejs/kit';
+import { and, eq } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { graphs, lessons, progress, subjects } from '$lib/server/db/schema';
 import { getOrCreateLesson } from '$lib/server/lessons';
+import { hasReachedDailyLessonStartLimit } from '$lib/server/security';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -50,35 +51,36 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
 	const prerequisiteIds = graph.edges.filter((edge) => edge.to === node.id).map((edge) => edge.from);
 	const prerequisiteNodes = graph.nodes.filter((candidate) => prerequisiteIds.includes(candidate.id));
-	const prerequisiteLessons = subjectLessons.filter((candidate) =>
-		prerequisiteIds.includes(candidate.nodeId)
-	);
+	const prerequisiteLessons = prerequisiteNodes.map((prerequisite) => {
+		const lesson = subjectLessons.find((candidate) => candidate.nodeId === prerequisite.id);
+		return {
+			id: lesson?.id ?? '',
+			nodeId: prerequisite.id,
+			concept: lesson?.concept ?? prerequisite.label
+		};
+	});
 
-	let completedLessonIds = new Set<string>();
+	let completedNodeIds = new Set<string>();
+	let currentProgress: { completed: boolean } | undefined;
 
-	if (userId && subjectLessons.length > 0) {
+	if (userId) {
 		const rows = await db
 			.select({
-				lessonId: progress.lessonId
+				nodeId: progress.nodeId,
+				completed: progress.completed
 			})
 			.from(progress)
-			.where(
-				and(
-					eq(progress.userId, userId),
-					inArray(
-						progress.lessonId,
-						subjectLessons.map((candidate) => candidate.id)
-					)
-				)
-			);
+			.where(and(eq(progress.userId, userId), eq(progress.subjectId, subject.id)));
 
-		completedLessonIds = new Set(rows.map((row) => row.lessonId));
+		completedNodeIds = new Set(rows.filter((row) => row.completed).map((row) => row.nodeId));
+		currentProgress = rows.find((row) => row.nodeId === node.id);
 	}
 
-	const locked = prerequisiteIds.some((id) => {
-		const lesson = subjectLessons.find((candidate) => candidate.nodeId === id);
-		return !lesson || !completedLessonIds.has(lesson.id);
-	});
+	const locked = prerequisiteIds.some((id) => !completedNodeIds.has(id));
+
+	if (!userId) {
+		redirect(303, '/');
+	}
 
 	if (locked) {
 		return {
@@ -106,7 +108,31 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		};
 	}
 
+	const cachedLesson = subjectLessons.find((candidate) => candidate.nodeId === node.id);
+
+	if (!cachedLesson && (await hasReachedDailyLessonStartLimit(userId))) {
+		error(429, 'Daily lesson generation limit reached');
+	}
+
 	const lesson = await getOrCreateLesson(subject.id, subject.subject, graph, node.id);
+
+	if (userId) {
+		await db
+			.insert(progress)
+			.values({
+				userId,
+				subjectId: subject.id,
+				nodeId: node.id,
+				completed: false,
+				lastAccessedAt: new Date()
+			})
+			.onConflictDoUpdate({
+				target: [progress.userId, progress.subjectId, progress.nodeId],
+				set: {
+					lastAccessedAt: new Date()
+				}
+			});
+	}
 
 	return {
 		session,
@@ -121,6 +147,6 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		},
 		prerequisites: prerequisiteLessons,
 		locked,
-		completed: completedLessonIds.has(lesson.id)
+		completed: currentProgress?.completed ?? false
 	};
 };

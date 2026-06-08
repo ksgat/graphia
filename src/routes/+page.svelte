@@ -22,14 +22,7 @@
 					type="button"
 					onclick={() => signIn('github', { redirectTo: '/app' })}
 				>
-					Sign up with GitHub
-				</button>
-				<button
-					class="rounded-md border border-slate-500 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800"
-					type="button"
-					onclick={() => signIn('github', { redirectTo: '/app' })}
-				>
-					Log in
+					Sign in with GitHub
 				</button>
 			</div>
 		</div>

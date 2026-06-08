@@ -113,10 +113,7 @@ function assertValidGraph(graph: GraphData) {
 }
 
 export async function generateGraph(subject: string): Promise<GraphData> {
-	const content = await requestOpenRouter(
-		[{ role: 'user', content: graphPrompt(subject) }],
-		{ type: 'json_object' }
-	);
+	const content = await requestOpenRouter([{ role: 'user', content: graphPrompt(subject) }]);
 	const graph = graphDataSchema.parse(parseModelJson(content));
 	const normalized = normalizeGraph(graph);
 	assertValidGraph(normalized);

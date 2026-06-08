@@ -20,6 +20,7 @@ export async function getOrCreateLesson(subjectId: string, subject: string, grap
 	}
 
 	const prerequisiteLabels = getPrerequisiteLabels(graph, node);
+	console.info('generation.lesson.start', { subjectId, nodeId: node.id });
 	const content = await generateLesson(subject, node.label, prerequisiteLabels, node.level);
 	const exerciseCount = parseExercises(content).length;
 
@@ -43,6 +44,12 @@ export async function getOrCreateLesson(subjectId: string, subject: string, grap
 			}
 		})
 		.returning();
+
+	console.info('generation.lesson.done', {
+		subjectId,
+		nodeId: node.id,
+		exerciseCount
+	});
 
 	return created;
 }

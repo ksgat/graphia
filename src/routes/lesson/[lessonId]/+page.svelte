@@ -1,8 +1,1 @@
-<script lang="ts">
-	import LessonPage from '../[subjectId]/LessonPage.svelte';
-	import type { PageData } from './$types';
-
-	let { data }: { data: PageData } = $props();
-</script>
-
-<LessonPage {data} />
+<p class="text-sm text-slate-600">Redirecting...</p>

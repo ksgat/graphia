@@ -11,9 +11,11 @@ interface ChatMessage {
 
 export async function requestOpenRouter(messages: ChatMessage[], responseFormat?: { type: 'json_object' }) {
 	if (!env.OPENROUTER_API_KEY) {
+		console.error('openrouter.config.missing', { key: 'OPENROUTER_API_KEY' });
 		throw new Error('OPENROUTER_API_KEY is not set');
 	}
 	if (!env.OPENROUTER_MODEL) {
+		console.error('openrouter.config.missing', { key: 'OPENROUTER_MODEL' });
 		throw new Error('OPENROUTER_MODEL is not set');
 	}
 
@@ -24,6 +26,12 @@ export async function requestOpenRouter(messages: ChatMessage[], responseFormat?
 		const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
 		try {
+			console.info('openrouter.request.start', {
+				model: env.OPENROUTER_MODEL,
+				messageCount: messages.length,
+				responseFormat: responseFormat?.type ?? 'none'
+			});
+
 			const response = await fetch(OPENROUTER_URL, {
 				method: 'POST',
 				headers: {
@@ -40,19 +48,44 @@ export async function requestOpenRouter(messages: ChatMessage[], responseFormat?
 				signal: controller.signal
 			});
 
-			const body = await response.json().catch(() => null);
+			const rawBody = await response.text();
+			console.info('openrouter.request.done', {
+				model: env.OPENROUTER_MODEL,
+				status: response.status,
+				ok: response.ok,
+				contentType: response.headers.get('content-type') ?? 'unknown',
+				bodyBytes: rawBody.length
+			});
+			const body = parseJsonBody(rawBody);
 
 			if (!response.ok) {
 				const message =
-					typeof body?.error?.message === 'string'
-						? body.error.message
-						: `OpenRouter request failed: ${response.status}`;
+					getErrorMessage(body) ?? `OpenRouter request failed with status ${response.status}`;
 				throw new Error(message);
+			}
+
+			if (!rawBody.trim()) {
+				throw new Error(
+					`OpenRouter returned an empty ${response.status} response for model ${env.OPENROUTER_MODEL}`
+				);
+			}
+
+			if (!body) {
+				throw new Error(
+					`OpenRouter returned non-JSON response (${response.status}, ${
+						response.headers.get('content-type') ?? 'unknown content-type'
+					})`
+				);
+			}
+
+			const errorMessage = getErrorMessage(body);
+			if (errorMessage) {
+				throw new Error(`OpenRouter error: ${errorMessage}`);
 			}
 
 			const content = extractMessageContent(body);
 			if (!content) {
-				throw new Error(`OpenRouter response did not include message content: ${summarizeBody(body)}`);
+				throw new Error('OpenRouter response did not include message content');
 			}
 
 			return content;
@@ -69,6 +102,16 @@ export async function requestOpenRouter(messages: ChatMessage[], responseFormat?
 
 function sleep(ms: number) {
 	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parseJsonBody(rawBody: string) {
+	if (!rawBody.trim()) return null;
+
+	try {
+		return JSON.parse(rawBody) as Record<string, unknown>;
+	} catch {
+		return null;
+	}
 }
 
 function extractMessageContent(body: unknown) {
@@ -113,13 +156,12 @@ function extractMessageContent(body: unknown) {
 	return null;
 }
 
-function summarizeBody(body: unknown) {
-	if (!body) return 'empty response body';
+function getErrorMessage(body: unknown) {
+	if (!body || typeof body !== 'object') return null;
 
-	try {
-		const json = JSON.stringify(body);
-		return json.length > 500 ? `${json.slice(0, 500)}...` : json;
-	} catch {
-		return 'unserializable response body';
-	}
+	const error = (body as { error?: unknown }).error;
+	if (!error || typeof error !== 'object') return null;
+
+	const message = (error as { message?: unknown }).message;
+	return typeof message === 'string' && message.trim() ? message : null;
 }
