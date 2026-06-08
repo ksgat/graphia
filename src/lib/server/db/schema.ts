@@ -73,6 +73,7 @@ export const subjects = pgTable('subjects', {
 		.notNull()
 		.references(() => users.id, { onDelete: 'cascade' }),
 	subject: text('subject').notNull(),
+	isPrivate: boolean('is_private').notNull().default(false),
 	status: text('status').notNull().default('generating'),
 	error: text('error'),
 	createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),

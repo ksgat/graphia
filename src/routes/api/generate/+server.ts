@@ -7,7 +7,8 @@ import { hasReachedDailyGraphGenerationLimit, isSameOrigin } from '$lib/server/s
 import type { RequestHandler } from './$types';
 
 const generateRequestSchema = z.object({
-	subject: z.string().trim().min(2).max(120)
+	subject: z.string().trim().min(2).max(120),
+	isPrivate: z.boolean().default(false)
 });
 
 export const POST: RequestHandler = async ({ request, locals }) => {
@@ -36,6 +37,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		.values({
 			userId,
 			subject: parsed.data.subject,
+			isPrivate: parsed.data.isPrivate,
 			status: 'generating'
 		})
 		.returning();

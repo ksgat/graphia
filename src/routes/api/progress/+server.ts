@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '$lib/server/db';
-import { graphs, lessons, progress } from '$lib/server/db/schema';
+import { graphs, lessons, progress, subjects } from '$lib/server/db/schema';
 import { isSameOrigin } from '$lib/server/security';
 import type { RequestHandler } from './$types';
 
@@ -27,6 +27,23 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const parsed = progressRequestSchema.safeParse(await request.json().catch(() => null));
 	if (!parsed.success) {
 		return json({ error: 'invalid progress payload' }, { status: 400 });
+	}
+
+	const [subject] = await db
+		.select({
+			userId: subjects.userId,
+			isPrivate: subjects.isPrivate
+		})
+		.from(subjects)
+		.where(eq(subjects.id, parsed.data.subjectId))
+		.limit(1);
+
+	if (!subject) {
+		return json({ error: 'subject not found' }, { status: 404 });
+	}
+
+	if (subject.isPrivate && subject.userId !== userId) {
+		return json({ error: 'subject not found' }, { status: 404 });
 	}
 
 	const [graph] = await db

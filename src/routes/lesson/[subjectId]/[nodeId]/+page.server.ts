@@ -20,6 +20,10 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		error(404, 'Subject not found');
 	}
 
+	if (subject.isPrivate && subject.userId !== userId) {
+		error(404, 'Subject not found');
+	}
+
 	const [graphRow] = await db
 		.select()
 		.from(graphs)

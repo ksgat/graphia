@@ -5,6 +5,7 @@
 	let { data }: { data: PageData } = $props();
 
 	let subject = $state('');
+	let isPrivate = $state(false);
 	let communitySearch = $state('');
 	let isGenerating = $state(false);
 	let errorMessage = $state('');
@@ -35,7 +36,7 @@
 			const response = await fetch('/api/generate', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ subject: trimmed })
+				body: JSON.stringify({ subject: trimmed, isPrivate })
 			});
 			const payload = await response.json();
 
@@ -54,6 +55,7 @@
 		return [
 			item.subject,
 			item.status,
+			item.isPrivate ? 'private' : 'public',
 			item.error,
 			item.authorName,
 			`${item.nodeCount} nodes`,
@@ -107,6 +109,18 @@
 					{isGenerating ? 'Generating...' : 'Generate graph'}
 				</button>
 			</div>
+			<label class="mt-3 flex items-start gap-3 text-sm text-slate-700">
+				<input
+					class="mt-0.5 rounded border-slate-300 text-slate-800 focus:ring-slate-500"
+					type="checkbox"
+					bind:checked={isPrivate}
+					disabled={isGenerating}
+				/>
+				<span>
+					Private course
+					<span class="block text-slate-500">Only you can open this graph and its lessons.</span>
+				</span>
+			</label>
 			{#if errorMessage}
 				<p class="mt-3 text-sm text-red-700">{errorMessage}</p>
 			{/if}
@@ -159,18 +173,18 @@
 		<div class="flex flex-col gap-4 border-t border-slate-200 pt-8 sm:flex-row sm:items-end sm:justify-between">
 			<div>
 				<h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">
-					Community subjects
+					Courses
 				</h2>
 				<p class="mt-2 text-sm text-slate-600">
-					Browse generated graphs and open any path that looks useful.
+					Browse public courses and your private courses.
 				</p>
 			</div>
 
 			<label class="w-full sm:max-w-xs">
-				<span class="sr-only">Search community subjects</span>
+				<span class="sr-only">Search courses</span>
 				<input
 					class="min-h-11 w-full rounded-md border-slate-300 bg-white px-4 text-sm shadow-sm focus:border-slate-500 focus:ring-slate-500"
-					placeholder="Search subjects..."
+					placeholder="Search courses..."
 					bind:value={communitySearch}
 				/>
 			</label>
@@ -183,7 +197,7 @@
 				</div>
 			{:else if filteredSubjects.length === 0}
 				<div class="rounded-lg border border-dashed border-slate-300 bg-white px-5 py-8 text-sm text-slate-600">
-					No community subjects match "{communitySearch.trim()}".
+					No courses match "{communitySearch.trim()}".
 				</div>
 			{:else}
 				<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -217,14 +231,26 @@
 							</div>
 
 							<div class="mt-5 flex items-center justify-between gap-3">
-								<span
-									class={[
-										'rounded-full px-2.5 py-1 text-xs font-medium ring-1',
-										statusClass(item.status)
-									]}
-								>
-									{item.status}
-								</span>
+								<div class="flex flex-wrap gap-2">
+									<span
+										class={[
+											'rounded-full px-2.5 py-1 text-xs font-medium ring-1',
+											statusClass(item.status)
+										]}
+									>
+										{item.status}
+									</span>
+									<span
+										class={[
+											'rounded-full px-2.5 py-1 text-xs font-medium ring-1',
+											item.isPrivate
+												? 'bg-slate-100 text-slate-700 ring-slate-200'
+												: 'bg-emerald-50 text-emerald-700 ring-emerald-100'
+										]}
+									>
+										{item.isPrivate ? 'Private' : 'Public'}
+									</span>
+								</div>
 								<span class="text-sm font-medium text-slate-500 group-hover:text-slate-950">
 									Open
 								</span>

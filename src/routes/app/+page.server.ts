@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, or } from 'drizzle-orm';
 import { redirect } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { graphs, progress, subjects, users } from '$lib/server/db/schema';
@@ -14,7 +14,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const subjectRows = await db
 		.select({
 			id: subjects.id,
+			userId: subjects.userId,
 			subject: subjects.subject,
+			isPrivate: subjects.isPrivate,
 			status: subjects.status,
 			error: subjects.error,
 			createdAt: subjects.createdAt,
@@ -25,6 +27,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		.from(subjects)
 		.leftJoin(users, eq(subjects.userId, users.id))
 		.leftJoin(graphs, eq(subjects.id, graphs.subjectId))
+		.where(or(eq(subjects.isPrivate, false), eq(subjects.userId, session.user.id)))
 		.orderBy(desc(subjects.createdAt))
 		.limit(30);
 

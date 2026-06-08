@@ -237,6 +237,11 @@
 				>
 					{data.subject.status}
 				</span>
+				{#if data.subject.isPrivate}
+					<span class="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
+						Private
+					</span>
+				{/if}
 			</div>
 		</div>
 
